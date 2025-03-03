@@ -1,0 +1,98 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local LocalPlayer = Players.LocalPlayer
+local CookingManager = LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:FindFirstChild("Scripts") and LocalPlayer.PlayerGui.Scripts:FindFirstChild("CookingManager")
+if CookingManager then
+    CookingManager.Disabled = true
+end
+
+local executorName = identifyexecutor() or ""
+local hasReplicateSignal = replicatesignal and not executorName:lower():match("atlantis")
+
+local Prompts = {
+    workspace.MeatPrompt,
+    workspace.FryerPrompt,
+    workspace.GrillPrompt1,
+    workspace.FryerPrompt1,
+    workspace.FryerPrompt2,  -- Fixed duplicate entry
+    workspace.GrillPrompt,
+    workspace.GrillPrompt2,  -- Fixed duplicate entry
+    workspace.ConePrompt,
+    workspace.FridgePrompt
+}
+
+local PromptsShown = {}
+local inUI = false
+
+-- Add cup prompts dynamically
+for _, v in ipairs(workspace.KitchenPrompts.Cups:GetChildren()) do
+    local ProximityPrompt = v:FindFirstChildWhichIsA("ProximityPrompt")
+    if ProximityPrompt then
+        table.insert(Prompts, v)
+    end
+end
+
+-- Ensure prompt events are correctly handled
+for _, Prompt in ipairs(Prompts) do
+    local ProximityPrompt = Prompt:FindFirstChildWhichIsA("ProximityPrompt")
+    if ProximityPrompt then
+        ProximityPrompt.PromptShown:Connect(function()
+            table.insert(PromptsShown, Prompt)
+        end)
+        ProximityPrompt.PromptHidden:Connect(function()
+            for i, v in ipairs(PromptsShown) do
+                if v == Prompt then
+                    table.remove(PromptsShown, i)
+                    break
+                end
+            end
+        end)
+    end
+end
+
+local function sendMouseButtonEvent(element)
+    if hasReplicateSignal then
+        replicatesignal(element.MouseButton1Click)
+    else
+        UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+        local position = element.AbsolutePosition + element.AbsoluteSize / 2
+        VirtualInputManager:SendMouseButtonEvent(position.X, position.Y + 50, 0, true, element, 1)
+        VirtualInputManager:SendMouseButtonEvent(position.X, position.Y + 50, 0, false, element, 1)
+        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+    end
+end
+
+local function handleUI()
+    inUI = true
+    local plrGui = LocalPlayer.PlayerGui
+    
+    if plrGui:FindFirstChild("MeatUI") then
+        sendMouseButtonEvent(plrGui.MeatUI.MainFrame.Beef)
+    elseif plrGui:FindFirstChild("FryerUI") then
+        sendMouseButtonEvent(plrGui.FryerUI.MainFrame["Chicken Nuggets"])
+    elseif plrGui:FindFirstChild("OvenAndGrillUI") then
+        sendMouseButtonEvent(plrGui.OvenAndGrillUI.MainFrame["Meat Wrap"])
+    elseif plrGui:FindFirstChild("CupUI") then
+        sendMouseButtonEvent(plrGui.CupUI.MainFrame.Large)
+    elseif plrGui:FindFirstChild("FridgeUI") then
+        sendMouseButtonEvent(plrGui.FridgeUI.MainFrame.Desserts)
+        sendMouseButtonEvent(plrGui.FridgeUI.DessertsFrame["Raw Raspberry Muffin"])
+    end
+    inUI = false
+end
+
+while task.wait(0.2) do
+    if not inUI then
+        for _, PromptShown in ipairs(PromptsShown) do
+            inUI = true
+            local ProximityPrompt = PromptShown:FindFirstChildWhichIsA("ProximityPrompt")
+            if ProximityPrompt then
+                fireproximityprompt(ProximityPrompt, 1, true)
+                handleUI()
+            end
+        end
+    end
+end
